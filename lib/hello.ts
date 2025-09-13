@@ -1,32 +1,50 @@
-import { z } from "zod"
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import { z } from "zod";
+import { formatUserInfo } from "./auth";
 
-// Shared Zod schema for hello message validation
-export const helloSchema = z.object({
-  name: z.string().optional().default("World")
-})
+// Zod schema for hello message validation
+export const helloSchema = {
+  name: z
+    .string()
+    .optional()
+    .default("World")
+    .describe("The name of the person to greet"),
+};
 
-// Enhanced hello logic that supports both authenticated and non-authenticated users
-export function sayHello(params: { name?: string }, userInfo?: { name?: string; email?: string }) {
-  // Validate input using the shared schema
-  const validatedParams = helloSchema.parse(params)
-  
-  // Use user info if authenticated, otherwise use provided name
-  const displayName = userInfo?.name || validatedParams.name
-  const userContext = userInfo ? ` (Authenticated user: ${userInfo.email})` : ''
-  
-  // Generate hello message
-  const message = `👋 Hello, ${displayName}! This is a simple MCP tool saying hi!${userContext}`
-  
-  // Return standardized result format
+// Enhanced hello function with authentication support
+export function sayHello(
+  { name }: { name?: string },
+  extra?: { authInfo?: AuthInfo },
+) {
+  // Validate and get the name
+  const validatedName = name || "World";
+
+  // Basic greeting
+  const greeting = `👋 Hello, ${validatedName}!`;
+
+  // Add authentication info if available
+  const authInfo = extra?.authInfo;
+  const userInfo = formatUserInfo(authInfo);
+
+  // Generate message with auth context
+  const message = authInfo
+    ? `${greeting}${userInfo} This is an authenticated MCP tool!`
+    : `${greeting} This is a public MCP tool!`;
+
+  // Return MCP-compatible result format
   return {
-    type: 'text' as const,
-    text: message
-  }
+    content: [
+      {
+        type: "text" as const,
+        text: message,
+      },
+    ],
+  };
 }
 
-// Tool definition that can be reused
+// Tool definition for MCP handler
 export const helloTool = {
-  name: 'say_hello',
-  description: 'Says hello to someone with a friendly greeting, personalized for authenticated users',
-  schema: helloSchema,
-} as const
+  name: "say_hello",
+  description: "Says hello to someone with authentication info",
+  inputSchema: helloSchema,
+} as const;
